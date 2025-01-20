@@ -107,27 +107,44 @@ do
     # FIXME this does not work! I should include his changes
     was_awaken=false
 
-    # First technic
-    suspended_at="$(grep "Freezing user space processes ... *$" /var/log/TOTOkern.log 2>/dev/null | tail -n 1 | awk ' { print $1 " " $2 " " $3 } ' || echo "")"
-    if [ -z "$suspended_at" ]; then
-        # Second technic
-        suspended_at="$(grep -E ': (performing suspend|Awake)' /var/log/TOTOpm-suspend.log 2>/dev/null | tail -n 2 | tr '\n' '|' | sed -rn 's/^(.*): performing suspend.*\|.*: Awake.*/\1/p' || echo "")"
-    fi
-    if [ -n "$suspended_at" ]; then
-        # echo -e "${red}suspended_at = ${suspended_at}${reset} ..."  # DEBUG
-        if date -d "$suspended_at" +%s 2>/dev/null >/dev/null ; then
-            suspended_at="$(date -d "$suspended_at" +%s)"
-            # XXX add 30 seconds, just to be sure that the laptop was indeed asleep at that time
-            suspended_at=$((suspended_at + 30))
-            if [ "$suspended_at" -ge "$last_write" ]; then
-                echo -e "${red}Suspend occured after last event${reset}, '${black}was_awaken${reset}' = true ...${reset}"
-                was_awaken=true
-            fi
-        else
-            suspended_at="0"
-            was_awaken=false
-        fi
-    fi
+    # # First technic
+    # suspended_at="$(grep "Freezing user space processes ... *$" /var/log/TOTOkern.log 2>/dev/null | tail -n 1 | awk ' { print $1 " " $2 " " $3 } ' || echo "")"
+    # if [ -z "$suspended_at" ]; then
+    #     # Second technic
+    #     suspended_at="$(grep -E ': (performing suspend|Awake)' /var/log/TOTOpm-suspend.log 2>/dev/null | tail -n 2 | tr '\n' '|' | sed -rn 's/^(.*): performing suspend.*\|.*: Awake.*/\1/p' || echo "")"
+    # fi
+    # if [ -n "$suspended_at" ]; then
+    #     # echo -e "${red}suspended_at = ${suspended_at}${reset} ..."  # DEBUG
+    #     if date -d "$suspended_at" +%s 2>/dev/null >/dev/null ; then
+    #         suspended_at="$(date -d "$suspended_at" +%s)"
+    #         # XXX add 30 seconds, just to be sure that the laptop was indeed asleep at that time
+    #         suspended_at=$((suspended_at + 30))
+    #         if [ "$suspended_at" -ge "$last_write" ]; then
+    #             echo -e "${red}Suspend occured after last event${reset}, '${black}was_awaken${reset}' = true ...${reset}"
+    #             was_awaken=true
+    #         fi
+    #     else
+    #         suspended_at="0"
+    #         was_awaken=false
+    #     fi
+    # fi
+
+	# Get suspend information using journalctl
+	suspended_at="$(journalctl -kg suspend --since "1 hour ago" | grep "PM: suspend entry" | tail -n 1 | awk '{print $1" "$2" "$3}' || echo "")"
+	if [ -n "$suspended_at" ]; then
+		if date -d "$suspended_at" +%s 2>/dev/null >/dev/null ; then
+			suspended_at="$(date -d "$suspended_at" +%s)"
+			# Add 30 seconds buffer time
+			suspended_at=$((suspended_at + 30))
+			if [ "$suspended_at" -ge "$last_write" ]; then
+				echo -e "${red}Suspend occurred after last event${reset}, '${black}was_awaken${reset}' = true ...${reset}"
+				was_awaken=true
+			fi
+		else
+			suspended_at="0"
+			was_awaken=false
+		fi
+	fi
 
 	perform_write=false
 	# if window title changed, perform write
